@@ -100,6 +100,12 @@ class Carpark extends CI_Controller
     	header('Last-Modified: '.gmdate('D, d M Y H:i:s', $last_modified_time).' GMT');
         header('Etag: '. APP_VERSION);
 		header('Cache-Control: public'); 
+		
+		// 20170921
+		header("cache-Control: no-store, no-cache, must-revalidate");
+		header("cache-Control: post-check=0, pre-check=0", false);
+		header("Pragma: no-cache");
+		header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");		
         
         if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] == APP_VERSION && @strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) == $last_modified_time)
     	{                  
