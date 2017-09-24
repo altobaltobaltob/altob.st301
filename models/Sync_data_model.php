@@ -17,6 +17,7 @@ define('SYNC_DELIMITER_ST_INFO',	'|');	// (拆分) 其它
 define('MCACHE_STATION_NO_STR', 'station_no_str');
 define('MCACHE_STATION_NAME_STR', 'station_name_str');
 define('MCACHE_STATION_IP_STR', 'station_ip_str');
+define('MCACHE_STATION_888_STR', 'station_888_str');
 
 define('MCACHE_SYNC_888_TMP_LOG', 'sync_888_tmp_log');	// 暫存 888 進出
 
@@ -83,8 +84,8 @@ class Sync_data_model extends CI_Model
 			$last_cars_tmp = $cars_tmp_log_arr[$new_cars_tmp['sno_io']];
 			
 			// 判斷是否跳過 (記錄於一小時內, 相同場站進出 lpr 或 etag)
-			if(	($last_cars_tmp['lpr'] == $new_cars_tmp['lpr'] || 
-				$last_cars_tmp['etag'] == $new_cars_tmp['etag'])	&& $last_cars_tmp['timestamp'] > $new_cars_tmp['timestamp'] - 3600
+			if(	( 	($last_cars_tmp['lpr'] == $new_cars_tmp['lpr'] && $last_cars_tmp['lpr'] != 'NONE')	|| 
+					($last_cars_tmp['etag'] == $new_cars_tmp['etag'] && $last_cars_tmp['etag'] != 'NONE')	)	&& $last_cars_tmp['timestamp'] > $new_cars_tmp['timestamp'] - 3600
 			)
 				$skip_or_not = true;
 		}
@@ -465,6 +466,34 @@ class Sync_data_model extends CI_Model
 	}
 	
 	// 同步車位現況 （功能: 888 同步, 在席同步）
+	public function sync_pks_groups_reload($station_setting)
+	{
+		$info = array();
+		$station_no_arr = explode(SYNC_DELIMITER_ST_NO, $station_setting['station_no']);
+		$station_name_arr = explode(SYNC_DELIMITER_ST_NAME, $station_setting['station_name']);
+		$station_888_arr = explode(SYNC_DELIMITER_ST_INFO, $station_setting['station_888']);
+		foreach($station_no_arr as $key => $station_no)
+		{
+			if($station_888_arr[$key] == 1)			// 啟用
+				array_push($info, array('station_no' => $station_no_arr[$key], 'station_name' => $station_name_arr[$key]));
+			else if($station_888_arr[$key] == 4)	// 關閉
+			{
+				// 清除	888
+				$this->db->delete('pks_groups', array('station_no' => $station_no_arr[$key]));
+			}
+			else
+			{
+				trigger_error(__FUNCTION__ . '..unknown station_888:' . $station_888_arr[$key]);
+			}
+		}
+		
+		if(empty($info))
+			return 'none';
+		
+		return $this->sync_pks_groups($info, true);
+	}
+	
+	// 同步車位現況 （功能: 888 同步, 在席同步）
 	public function sync_pks_groups($info_arr=array(array('station_no' => STATION_NO, 'station_name' => STATION_NAME)), $reload=false) 
 	{                    
 		if($reload)
@@ -506,7 +535,8 @@ class Sync_data_model extends CI_Model
 					$new_pks_groups_data = array(
 								'station_no' => $pks_info[0], 
 								'group_id' => $pks_info[1], 
-								'tot' => 100,
+								'tot' => 100, 			// 預設車位數
+								'availables' => 100,	// 預設車位數
 								'floors' => 'TOT',
 								'group_name' => $pks_groups_name_arr[$pks_info[0]]
 							);
@@ -573,18 +603,22 @@ class Sync_data_model extends CI_Model
 		$station_setting_arr = $station_setting_result['results'];
 		$station_no_arr = array();
 		$station_name_arr = array();
+		$station_888_arr = array();
 		foreach($station_setting_arr as $data)
 		{
 			array_push($station_no_arr, $data['station_no']);
 			array_push($station_name_arr, $data['short_name']);
+			array_push($station_888_arr, $data['station_888']);
 		}
 		$station_no_str = implode(SYNC_DELIMITER_ST_NO, $station_no_arr);		// 取值時會用到
 		$station_name_str = implode(SYNC_DELIMITER_ST_NAME, $station_name_arr);	// 純顯示
+		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);	// 場站888設定
 		
 		// 設定到 mcache
 		$this->vars['mcache']->set(MCACHE_STATION_NO_STR, $station_no_str);
 		$this->vars['mcache']->set(MCACHE_STATION_NAME_STR, $station_name_str);
 		$this->vars['mcache']->set(MCACHE_STATION_IP_STR, $station_ip_str);
+		$this->vars['mcache']->set(MCACHE_STATION_888_STR, $station_888_str);
 		return 'ok';
 	}
 	
@@ -594,8 +628,9 @@ class Sync_data_model extends CI_Model
 		$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
 		$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 		$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
+		$station_888_str = $this->vars['mcache']->get(MCACHE_STATION_888_STR);
 	
-		if($reload || empty($station_no_str) || empty($station_name_str) || empty($station_ip_str))
+		if($reload || empty($station_no_str) || empty($station_name_str) || empty($station_ip_str) || empty($station_888_str))
 		{
 			$result = $this->reload_station_setting();
 			
@@ -604,6 +639,7 @@ class Sync_data_model extends CI_Model
 				$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
 				$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 				$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
+				$station_888_str = $this->vars['mcache']->get(MCACHE_STATION_888_STR);
 			}
 			else
 			{
@@ -622,6 +658,7 @@ class Sync_data_model extends CI_Model
 		$station_setting['station_no'] = $station_no_str;
 		$station_setting['station_name'] = $station_name_str;
 		$station_setting['station_ip'] = $station_ip_str;
+		$station_setting['station_888'] = $station_888_str;
 		return $station_setting;
 	}
 	
