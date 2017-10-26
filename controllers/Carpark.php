@@ -46,9 +46,6 @@ class Carpark extends CI_Controller
 		$this->vars['mqtt']->connect();
 		*/
 		
-		$this->load->model('carpark_model'); 
-        $this->carpark_model->init($this->vars);
-		
 		// 資料介接模組
 		$this->load->model('sync_data_model'); 
 		$this->sync_data_model->init($this->vars);	// for memcache
@@ -62,6 +59,9 @@ class Carpark extends CI_Controller
 		
 		// init again
 		$this->sync_data_model->init($this->vars);	// for mqtt
+		
+		$this->load->model('carpark_model'); 
+        $this->carpark_model->init($this->vars);
 		
 		// 產生 excel 報表
 		$this->load->model('excel_model'); 
