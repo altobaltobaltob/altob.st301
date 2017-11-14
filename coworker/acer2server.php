@@ -147,6 +147,49 @@ $tcp_worker->onMessage = function($connection, $tcp_in)
 					$result['result']['error_code'],
 					$result['result']['msg_code']);	
 				break;
+				
+			// ACER 自行產生票號, 通知我方產生的票號
+			case '006':
+				// （傳入：6 碼數字； 回傳：結果代碼、入場編號、錯誤碼）
+				list($ticket_no) = explode(chr(31), $data);								// 0x1F data欄位分隔
+				trigger_error("cmd:{$cmd}, ticket_no:{$ticket_no}");
+				
+				// 呼叫 cmd_003
+				$data = array('ticket_no' => $ticket_no);
+				curl_setopt($ch, CURLOPT_URL, 'http://localhost/acer_service.html/cmd_006/'); 
+				curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));   
+				$jdata = curl_exec($ch);      
+				$result = json_decode($jdata, true);
+				
+				trigger_error("{$cmd}|{$ticket_no}|result|" . print_r($result, true));
+				
+				$send_data = gen_cario_result($seq, $cmd, 
+					$result['result_code'], 
+					$result['result']['cario_no'], 
+					$result['result']['error_code']);	
+				break;
+				
+			// ACER 讀取輸入票號, 通知我方判斷票號離場現況
+			case '007':
+				// （傳入：6 碼數字； 回傳：結果代碼、入場編號、錯誤碼、離場代碼）
+				list($ticket_no) = explode(chr(31), $data);								// 0x1F data欄位分隔
+				trigger_error("cmd:{$cmd}, ticket_no:{$ticket_no}");
+				
+				// 呼叫 cmd_003
+				$data = array('ticket_no' => $ticket_no);
+				curl_setopt($ch, CURLOPT_URL, 'http://localhost/acer_service.html/cmd_007/'); 
+				curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));   
+				$jdata = curl_exec($ch);      
+				$result = json_decode($jdata, true);
+				
+				trigger_error("{$cmd}|{$ticket_no}|result|" . print_r($result, true));
+				
+				$send_data = gen_cario_result($seq, $cmd, 
+					$result['result_code'], 
+					$result['result']['cario_no'], 
+					$result['result']['error_code'],
+					$result['result']['msg_code']);	
+				break;
 			
 			default:
 				trigger_error(".. unknown cmd | {$seq}, {$cmd}, {$data}|");

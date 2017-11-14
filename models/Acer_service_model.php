@@ -222,6 +222,83 @@ class Acer_service_model extends CI_Model
 		return $data;
     }
 	
+	// ACER 自行產生票號, 通知我方產生的票號
+	// （傳入：6 碼數字； 回傳：結果代碼、入場編號、錯誤碼）
+	public function cmd_006($ticket_no)
+	{                   
+		trigger_error(__FUNCTION__ . "..{$ticket_no}..");
+		
+		$cario_no = 0;							// 進出碼
+		$error_code = ALTOB_ERROR_CODE_NONE;	// 錯誤碼
+		
+		$data = array();
+		$data['result_code'] = ALTOB_RESULT_CODE_SUCCESS;
+		$data['result']['cario_no'] = $cario_no;
+		$data['result']['error_code'] = $error_code;
+		return $data;
+    }
+	
+	// ACER 讀取輸入票號, 通知我方判斷票號離場現況
+	// （傳入：6 碼數字； 回傳：結果代碼、入場編號、錯誤碼、離場代碼）
+	public function cmd_007($ticket_no)
+	{                   
+		// 票號查詢最近一筆入場資料 （只能查 5天 內）
+		$rows_cario = $this->db
+							->select('cario_no, payed, in_time, pay_time, out_before_time')
+        					->from('cario')
+							->where(array(
+									'ticket_no' => $ticket_no, 'err' => 0, 
+									'in_time > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY)' => null)
+								)
+                  			->order_by('cario_no', 'desc')
+                  			->limit(1)
+                			->get()
+                			->row_array();
+
+		trigger_error(__FUNCTION__ . '..cario..' . print_r($rows_cario, true));
+		
+		$cario_no = 0;							// 進出碼
+		$error_code = ALTOB_ERROR_CODE_NONE;	// 錯誤碼
+		$msg_code = 0;							// 離場碼
+		
+		if (!empty($rows_cario['cario_no']))
+		{
+			$cario_no = $rows_cario['cario_no'];
+			
+			if(strtotime($rows_cario['out_before_time']) >= time())
+			{
+				if ($rows_cario['payed'])
+				{
+					// CO.B.1 臨停車已付款
+					$msg_code = 6;
+				}
+				else
+				{
+					// CO.B.2 臨停車未付款
+					$msg_code = 8;
+				}
+			}
+			else
+			{
+				// CO.C.1 其它付款方式
+				$msg_code = 9;
+			}
+		}
+		else
+		{
+			// CO.Z.Z 無入場資料
+			$cario_no = 0;
+			$msg_code = 13;
+		}
+		
+		$data = array();
+		$data['result_code'] = ALTOB_RESULT_CODE_SUCCESS;
+		$data['result']['cario_no'] = $cario_no;
+		$data['result']['error_code'] = $error_code;
+		$data['result']['msg_code'] = $msg_code;
+		return $data;
+    }
+	
 	// 呼叫 acer （cmd: 101)
 	// （傳入：入場編號、進場時間、 6 碼數字、車牌號碼、出入口編號； 回傳：結果代碼、入場編號、錯誤碼）
 	public function cmd_101($cario_no, $in_time, $ticket_no, $lpr, $ivs_no)

@@ -138,6 +138,28 @@ class Acer_service extends CI_Controller
 		echo json_encode($data, JSON_UNESCAPED_UNICODE); 
 	}
 	
+	// ACER 自行產生票號, 通知我方產生的票號
+	public function cmd_006()
+	{
+		$ticket_no = $this->input->post('ticket_no', true);
+		
+		trigger_error(__FUNCTION__ . ", ticket_no:{$ticket_no}");
+		
+		$data = $this->acer_service_model->cmd_006($ticket_no);
+		echo json_encode($data, JSON_UNESCAPED_UNICODE); 
+	}
+	
+	// ACER 讀取輸入票號, 通知我方判斷票號離場現況
+	public function cmd_007()
+	{
+		$ticket_no = $this->input->post('ticket_no', true);
+		
+		trigger_error(__FUNCTION__ . ", ticket_no:{$ticket_no}");
+		
+		$data = $this->acer_service_model->cmd_007($ticket_no);
+		echo json_encode($data, JSON_UNESCAPED_UNICODE); 
+	}
+	
 	// 車辨入場訊號，觸發 ACER 開門
 	public function cmd_101()
 	{
