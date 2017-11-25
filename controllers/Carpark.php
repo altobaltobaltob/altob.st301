@@ -455,7 +455,7 @@ class Carpark extends CC_Controller
 					'pswd' => $this->input->post('pswd', true)
 				);                           
 		
-		$result = $this->app_model()->user_login($data);
+		$result = $this->app_model('user')->user_login($data);
 		
 		if($result)
 		{

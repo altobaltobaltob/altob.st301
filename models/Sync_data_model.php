@@ -30,6 +30,7 @@ class Sync_data_model extends CI_Model
 	{
 		$this->vars['mqtt']->publish($topic, $msg, 0);
     	trigger_error("mqtt:{$topic}|{$msg}");
+		usleep(100000); // delay 0.1 sec (避免漏訊號)
     }
 	
 	// ------------------------------------------------
@@ -259,11 +260,11 @@ class Sync_data_model extends CI_Model
 		// 送出即時訊號
 		if($group_id == SYNC_PKS_GROUP_ID_CI)
 		{
-			$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",1,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (汽車)
+			//$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",1,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (汽車)
 		}
 		else if($group_id == SYNC_PKS_GROUP_ID_MI)
 		{
-			$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",2,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (機車)
+			//$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",2,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (機車)
 		}
 		else
 		{
@@ -285,6 +286,37 @@ class Sync_data_model extends CI_Model
 	// 中控接收端 (START)
 	//
 	// ------------------------------------------------
+	
+	// 同步歐pa卡 （功能: 歐pa卡同步）
+	public function sync_allpa_user($info_arr=array('station_no_arr' => STATION_NO))
+	{
+		require_once(ALTOB_SYNC_FILE);
+		$sync_agent = new AltobSyncAgent();
+		$data = $sync_agent->query_allpa_users();
+		$data_allpa_user_arr = json_decode($data, true);
+		
+		if (sizeof($data_allpa_user_arr) <= 0)
+		{
+			trigger_error(SYNC_DATA_LOG_TITLE . '.. allpa_user empty ..');	// 忽略完全沒會員的情況
+			return 'empty';
+		}
+		
+		$this->db->trans_start();
+		// 清空
+		$this->db->empty_table('allpa_user');
+		// 建立 members
+		$this->db->insert_batch('allpa_user', $data_allpa_user_arr);
+		
+		$this->db->trans_complete();
+		if ($this->db->trans_status() === FALSE)
+		{
+			trigger_error(SYNC_DATA_LOG_TITLE . '.. sync allpa_user fail ..'. '| last_query: ' . $this->db->last_query());
+			return 'fail';
+		}
+		
+		trigger_error(SYNC_DATA_LOG_TITLE . '.. sync allpa_user completed ..');
+		return 'ok';
+	}
 	
 	// 同步場站會員 （功能: 會員同步）
 	public function sync_members($info_arr=array('station_no_arr' => STATION_NO))
@@ -580,6 +612,7 @@ class Sync_data_model extends CI_Model
 		$sync_agent->init(STATION_NO);	// 已帶上的資料場站編號為主
 		$sync_result = $sync_agent->upd_pks_groups(json_encode($pks_group_query_data, JSON_UNESCAPED_UNICODE));
 		trigger_error( SYNC_DATA_LOG_TITLE . '..'. __FUNCTION__ . "..upd_pks_groups.." .  $sync_result);
+		return $sync_result;
     }
 	
 	// 重新載入場站設定
@@ -624,6 +657,7 @@ class Sync_data_model extends CI_Model
 		
 		$station_setting_arr = $station_setting_result['results'];
 		$station_no_arr = array();
+		$station_no_list_arr = array();
 		$station_name_arr = array();
 		$station_888_arr = array();
 		
@@ -636,6 +670,25 @@ class Sync_data_model extends CI_Model
 			array_push($station_name_arr, $data['short_name']);
 			array_push($station_888_arr, $data['station_888']);
 			
+			// 若有設定多個場站, 已多場站設定為主
+			$tmp_station_no_list_arr = explode(SYNC_DELIMITER_ST_NO, $data['station_no_list']);
+			
+			foreach($tmp_station_no_list_arr as $key => $station_no_list_value)
+			{
+				if(intval($station_no_list_value) > 0)
+				{	
+					if(empty($station_no_list_arr))
+						array_push($station_no_list_arr, $station_no_list_value);
+						
+					else if(!array_search($station_no_list_value, $station_no_list_arr))
+						array_push($station_no_list_arr, $station_no_list_value);
+				}
+			}
+			
+			// 若無設定直接放目前場站
+			if(empty($station_no_list_arr))
+				array_push($station_no_list_arr, $station_no);
+			
 			if(!isset($settings[$station_no]))
 			{
 				$settings[$station_no] = array();
@@ -643,13 +696,17 @@ class Sync_data_model extends CI_Model
 			$settings[$station_no]['station_888'] = empty($data['station_888']) ? 1 : $data['station_888'];
 			$settings[$station_no]['mqtt_ip'] = empty($data['mqtt_ip']) ? MQ_HOST : $data['mqtt_ip'];
 			$settings[$station_no]['mqtt_port'] = empty($data['mqtt_port']) ? MQ_PORT : $data['mqtt_port'];
+			$settings[$station_no]['local_ip'] = empty($data['local_ip']) ? STATION_LOCAL_IP : $data['local_ip'];
 		}
-		$station_no_str = implode(SYNC_DELIMITER_ST_NO, $station_no_arr);		// 取值時會用到
-		$station_name_str = implode(SYNC_DELIMITER_ST_NAME, $station_name_arr);	// 純顯示
-		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);	// 場站	888 設定
+		
+		$station_no_str = implode(SYNC_DELIMITER_ST_NO, $station_no_arr);			// 取值時會用到
+		$station_no_list_str = implode(SYNC_DELIMITER_ST_NO, $station_no_list_arr);	// 會員資料同步相關
+		$station_name_str = implode(SYNC_DELIMITER_ST_NAME, $station_name_arr);		// 純顯示
+		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);		// 場站	888 設定
 		
 		// 設定到 mcache
 		$this->vars['mcache']->set(MCACHE_STATION_NO_STR, $station_no_str);
+		$this->vars['mcache']->set(MCACHE_STATION_NO_LIST_STR, $station_no_list_str);
 		$this->vars['mcache']->set(MCACHE_STATION_NAME_STR, $station_name_str);
 		$this->vars['mcache']->set(MCACHE_STATION_IP_STR, $station_ip_str);
 		$this->vars['mcache']->set(MCACHE_STATION_PORT_STR, $station_port_str);
@@ -662,6 +719,7 @@ class Sync_data_model extends CI_Model
 	public function station_setting_query($reload=false)
 	{
 		$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
+		$station_no_list_str = $this->vars['mcache']->get(MCACHE_STATION_NO_LIST_STR);
 		$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 		$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
 		$station_port_str = $this->vars['mcache']->get(MCACHE_STATION_PORT_STR);
@@ -669,6 +727,7 @@ class Sync_data_model extends CI_Model
 		$settings = $this->vars['mcache']->get(MCACHE_STATION_SETTINGS);
 	
 		if(	$reload	|| 
+			empty($station_no_list_str)	|| 	
 			empty($station_no_str) 		|| 	empty($station_name_str)	|| 
 			empty($station_ip_str) 		|| 	empty($station_port_str)			||	
 			empty($station_888_str)		||
@@ -680,6 +739,7 @@ class Sync_data_model extends CI_Model
 			if($result == 'ok')
 			{
 				$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
+				$station_no_list_str = $this->vars['mcache']->get(MCACHE_STATION_NO_LIST_STR);
 				$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 				$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
 				$station_port_str = $this->vars['mcache']->get(MCACHE_STATION_PORT_STR);
@@ -705,6 +765,7 @@ class Sync_data_model extends CI_Model
 		
 		$station_setting = array();
 		$station_setting['station_no'] = $station_no_str;
+		$station_setting['station_no_list'] = $station_no_list_str;
 		$station_setting['station_name'] = $station_name_str;
 		$station_setting['station_ip'] = $station_ip_str;
 		$station_setting['station_port'] = $station_port_str;
