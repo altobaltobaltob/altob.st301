@@ -276,12 +276,30 @@ class Carpayment_model extends CI_Model
 		{
 			trigger_error(__FUNCTION__ . '..備援查詢: ' . $word);
 			
+			/*
 			$sql = "SELECT obj_id as lpr, ticket_no
 					FROM cario
 					WHERE finished = 0 AND err = 0
 						AND out_before_time > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY)
 						AND ticket_no = {$word}
 					ORDER BY out_before_time DESC";
+			*/
+			
+			/* 20171125 無言造假協定
+			
+				規則：六碼數字代號
+				1. 第一碼, 1 開頭為汽車, 2 開頭為機車
+			*/
+			$io_type = (substr($word, 0, 1) == 2) ? 'MI' : 'CI';
+			$sql = "SELECT obj_id as lpr, ticket_no
+					FROM cario
+					WHERE finished = 0 AND err = 0
+						AND out_before_time > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)
+						AND obj_id = 'NONE' 
+						AND in_out = '{$io_type}'
+					ORDER BY out_before_time DESC
+					LIMIT 10";
+			
 			$retults = $this->db->query($sql)->result_array();
 			return $retults;
 		}
