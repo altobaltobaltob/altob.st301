@@ -45,11 +45,16 @@ define('CAR_PIC', FILE_BASE.'cars/pics/');				// 車輛照片存檔路徑
 define('PKS_PIC', FILE_BASE.'pks/pics/');				// 車輛入車格照片存檔路徑
 
 define('EXPORT_BASE', '/home/data/export/');			// 檔案匯出根路徑  
+
+define('SOS_BASE',	FILE_BASE. 'sos/');					// 警急求救路徑
+define('SOS_MSG',	SOS_BASE. 'sos.txt');				// 警急求救檔案路徑
    
 define('STATION_NAME', '未設定');						// 本場站名稱
 define('STATION_NO', 54321);							// 本場站編號
-define('STATION_IP', '192.168.10.201');					// 本場站IP
+define('STATION_IP', $_SERVER['SERVER_NAME']);			// 本場站IP
 define('STATION_URL', 'http://'.STATION_IP.'/');		// 本場站URL
+
+define('STATION_LOCAL_IP', '192.168.10.201');			// 內網IP
 
 define('PHPLIBS_BASE', '/home/bigbang/libs/phplibs/');	// phplibs 根路徑
 define('ALTOB_SYNC_FILE', PHPLIBS_BASE.'Altob.Sync.Integration.php');			// ALTOB (同步)
@@ -63,7 +68,7 @@ define('ALLPAY_FILE', PHPLIBS_BASE.'AllPay.Payment.Integration.php');	// 歐付�
 define('ALLPAY_INVOICE_FILE', PHPLIBS_BASE.'AllPay_Invoice.php');		// 歐付寶 (電子發票)
 
 define('MQ_CLASS_FILE', PHPLIBS_BASE.'phpMQTT.php');	// MQTT: class file name    
-define('MQ_HOST', '192.168.10.202');					// MQTT: host   
+define('MQ_HOST', 'localhost');							// MQTT: host   
 define('MQ_PORT', 1883);								// MQTT: port (default:1883) 
 define('MQ_TOPIC_SUBLEVEL', 'SUBLEVEL');				// MQTT TOPIC: 樓層在席顯示
 define('MQ_TOPIC_SUBTEXT', 'SUBTEXT');					// MQTT TOPIC: 出入口字幕機
@@ -97,6 +102,7 @@ define('SYNC_DELIMITER_ST_INFO',	'|');	// (拆分) 其它
 */
 
 define('MCACHE_STATION_NO_STR', 'station_no_str');
+define('MCACHE_STATION_NO_LIST_STR', 'station_no_list_str');	// 會員資料同步
 define('MCACHE_STATION_NAME_STR', 'station_name_str');
 define('MCACHE_STATION_IP_STR', 'station_ip_str');
 define('MCACHE_STATION_PORT_STR', 'station_port_str');
