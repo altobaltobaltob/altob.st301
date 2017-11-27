@@ -291,16 +291,19 @@ class Carpayment_model extends CI_Model
 				1. 第一碼, 1 開頭為汽車, 2 開頭為機車
 			*/
 			$io_type = (substr($word, 0, 1) == 2) ? 'MI' : 'CI';
+			$word_hour = substr($word, 1, 2);	// 小時
+			$word_min = substr($word, 3, 2);	// 分鐘
 			$sql = "SELECT obj_id as lpr, ticket_no
 					FROM cario
 					WHERE finished = 0 AND err = 0
 						AND out_before_time > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)
+						AND HOUR(in_time) = {$word_hour}
 						AND obj_id = 'NONE' 
 						AND in_out = '{$io_type}'
 					ORDER BY out_before_time DESC
 					LIMIT 10";
-			
 			$retults = $this->db->query($sql)->result_array();
+			trigger_error(__FUNCTION__ . "..{$io_type}|{$word_hour}|{$word_min}..{$sql}");
 			return $retults;
 		}
 		$fuzzy_statement = $this->getLevenshteinSQLStatement($word, 'obj_id');
